@@ -1,0 +1,89 @@
+replicaCount: 1
+nodeSelector: {}
+tolerations: []
+affinity: {}
+nameOverride: "metabase"
+fullnameOverride: "metabase"
+imagePullSecrets: []
+metabaseDbSecretName: metabase-postgre-secret
+metabase:
+  image:
+    repository: metabase/metabase
+    pullPolicy: IfNotPresent
+    tag: v0.51.2.4
+  securityContext:
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+  service:
+    type: ClusterIP
+    port: 3000
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      kubernetes.io/ingress.class: nginx
+    hosts:
+      - host: metabase.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: []
+    #  - secretName: metabase-tls
+    #    hosts:
+    #      - metabase.local
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  persistence:
+    storageClassName: standard
+  postInstall:
+    enabled: false
+    authenticate:
+    google:
+      enabled: false
+      secretName: metabase-google-auth
+postgres:
+  image:
+    repository: postgres
+    pullPolicy: IfNotPresent
+    tag: 16-alpine3.20
+  podAnnotations: {}
+  securityContext:
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 101
+  service:
+    type: ClusterIP
+    port: 5432
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  persistence:
+    storageClassName: standard

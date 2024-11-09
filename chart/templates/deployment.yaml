@@ -1,0 +1,167 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "metabase.fullname" . }}
+  labels:
+    {{- include "metabase.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "metabase.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "metabase.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: {{ .Chart.Name }}-init-storage
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+            runAsUser: 0
+          image: busybox:1.37.0
+          command: ["sh","-c","chmod 777 /metabase-data;mkdir -p /metabase-data/plugins;chmod 777 /metabase-postgres;"]
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: {{ .Chart.Name }}-data
+              mountPath: /metabase-data
+            - name: {{ .Chart.Name }}-postgres
+              mountPath: /metabase-postgres
+          resources:
+            {{- toYaml .Values.metabase.resources | nindent 12 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.metabase.securityContext | nindent 12 }}
+          image: "{{ .Values.metabase.image.repository }}:{{ .Values.metabase.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.metabase.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.metabase.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          env:
+            - name: MB_DB_TYPE
+              value: postgres
+            - name: MB_DB_HOST
+              value: localhost
+            - name: MB_DB_PORT
+              value: "{{ .Values.postgres.service.port }}"
+            - name: MB_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metabaseDbSecretName }}
+                  key: MB_DB_USER
+            - name: MB_DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metabaseDbSecretName }}
+                  key: MB_DB_PASS
+            - name: MB_DB_DBNAME
+              value: {{ .Chart.Name }}
+            - name: MB_PLUGINS_DIR
+              value: /metabase-data/plugins
+          volumeMounts:
+            - name: {{ .Chart.Name }}-data
+              mountPath: /metabase-data
+          resources:
+            {{- toYaml .Values.metabase.resources | nindent 12 }}
+        - name: {{ .Chart.Name }}-postgres
+          securityContext:
+            {{- toYaml .Values.postgres.securityContext | nindent 12 }}
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          ports:
+            - name: tcp
+              containerPort: {{ .Values.postgres.service.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metabaseDbSecretName }}
+                  key: MB_DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metabaseDbSecretName }}
+                  key: MB_DB_PASS
+            - name: POSTGRES_DB
+              value: metabase
+            - name: PGDATA
+              value: /metabase-postgres/data
+            - name: PGHOST
+              value: /metabase-postgres/run
+            - name: PGTZ
+              value: America/Sao_Paulo
+          volumeMounts:
+            - name: {{ .Chart.Name }}-postgres
+              mountPath: /metabase-postgres
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+        {{- if .Values.metabase.postInstall.enabled -}}
+        - name: {{ .Chart.Name }}-post-install
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+          image: vit0r/metabase-postinstall:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metabaseDbSecretName }}
+                  key: MB_DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metabaseDbSecretName }}
+                  key: MB_DB_PASS
+            - name: POSTGRES_DB
+              value: metabase
+            {{- if .Values.metabase.postInstall.authenticate.google.enabled -}}
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metabase.postInstall.authenticate.google.secretName }}
+                  key: CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metabase.postInstall.authenticate.google.secretName }}
+                  key: CLIENT_SECRET
+            {{- end }}
+          resources:
+            {{- toYaml .Values.metabase.resources | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: {{ .Chart.Name }}-data
+          persistentVolumeClaim:
+            claimName: {{ .Chart.Name }}-data
+        - name: {{ .Chart.Name }}-postgres
+          persistentVolumeClaim:
+            claimName: {{ .Chart.Name }}-postgres

@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "metabase.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "metabase.labels" . | nindent 4 }}
+spec:
+  storageClassName: {{ .Values.metabase.persistence.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.metabase.persistence.size | default "100G" }}
+  accessModes:
+    - {{ .Values.metabase.persistence.accessMode | default "ReadWriteOnce" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "metabase.fullname" . }}-postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "metabase.labels" . | nindent 4 }}
+spec:
+  storageClassName: {{ .Values.postgres.persistence.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.postgres.persistence.size | default "50G" }}
+  accessModes:
+    - {{ .Values.postgres.persistence.accessMode | default "ReadWriteOnce" }}
