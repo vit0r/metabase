@@ -24,7 +24,7 @@ spec:
             runAsNonRoot: false
             runAsUser: 0
           image: busybox:1.37.0
-          command: ["sh","-c","mkdir -p /metabase-data/plugins;chmod 777 -R /metabase-data;chmod 777 /metabase-postgres;"]
+          command: ["sh","-c","chmod 777 -R /metabase-data;mkdir -p /metabase-data/plugins;chmod 777 /metabase-postgres;"]
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: {{ .Chart.Name }}-data
